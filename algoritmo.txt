@@ -1,0 +1,63 @@
+parametros pp = (q, n, m, t, w, b)
+
+-inteiros positivos
+- n+1 < m < n^2, n < b, (2log?2 b * b + 2) * b < q
+- 2log?2 b < n
+- Zq = {0, . . . , q - 1}
+
+ Key Generation
+
+dados os parametros pp geramos o par (K, PK) onde K e a chave privada e PK e a chave publica
+
+K = (s, sk, r, p) 
+onde: 
+s é um vetor n-dimensional onde cada cordenada e um inteiro mod q
+sk, r, p sao inteiros positivos em mod q
+
+regras: 
+- t = p
+– sk, p and q are mutually co-prime
+– sk * (t - 1) + w * r * p < q
+– b < r
+
+PK 
+a chave publica consistem em m amostras aleatorias Compact-LWE definidas como
+
+ai e um vetor n-dimensional de cordenadas inteiras mod b
+
+temos entao o par de chave PK com
+
+(ai, pki)
+onde pki = produto interno(ai, s) + ei * sk^-1?q *p mod q
+
+onde ei e uniformemente amostravel em aneis de inteiros mod r
+
+e 
+
+sk^-1?q satisfaz a condicao de sk * sk^-1?q  =  -1 mod q.
+
+(we used k to refer to sk^-1?q * p)
+
+
+Encriptacao
+
+um texto limpo V de Zt e encriptado com o algortmo c = Enc(PK, v) onde c e o texto cifrado
+
+c é um vetor (n + 1) dinmensional
+
+para encriptarmos pegaremos w amostras aleatorias de chave publica e fazemos nelas uma adicao vetorial, exemplo: (ai, pki) and (aj , pkj ), their addition is represented as (ai, pki) + (aj , pkj ) = (ai + aj , pki + pkj ) mod q
+
+o algoritmo de encriptacao funciona assim:
+- faca uma amostra de um numro inteiro i uniformemente do conjunto {1, ..., m} e deixe c' = (ai, pki) ser a amostra correspondente em PK
+- amostre w inteiros uniformemente do conjunto {1, ..., m} e para cada inteiro amostrado faca a atualizacao c' = c' + (ai, pki)
+-suponha q c' = (a, pk) e gere c = (a, v -pk mod q)
+
+Decriptacao
+
+seja K = (s, sk, r, p) e sk^-1?p o inverso multiplicativo de sk mod p(sk^-1?p  * sk = 1 mod p) e dado o texto cifrado c = (a, d) o algoritmo de decriptacao Dec(K, c) = v onde v e o texto limpo recuperado seguindo os seguintes passos
+
+-calcula c' = produtoInterno(a, s) + d mod q.
+-calcula skv = sk * c' mod q
+-calcula v = sk^-1?p * skv mod p
+
+
