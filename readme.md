@@ -1,6 +1,6 @@
-o algoritmo esta configurado para encriptar valores mod t onde t = mod 2(encripta valoes binarios 0 e 1) caso queira aumentar o valor para encriptar valores maiores mude t para o numero mod que desejar,
+o algoritmo esta configurado para encriptar valores mod t onde t = mod 2(encripta valores binarios 0 e 1) caso queira aumentar o valor para encriptar valores maiores altere o valor de t para o numero mod que desejar,
 
-a mensagem a ser encirptada e definida por v na linha 110
+a mensagem a ser encirptada é definida por v na linha 110
 
 utilizei os parametros pp{
 q = 345
