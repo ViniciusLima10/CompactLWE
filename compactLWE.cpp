@@ -7,13 +7,7 @@
 
 using namespace std;
 
-// Parâmetros do esquema Compact-LWE (valores fixos para determinismo)
-// const int32_t q = 345; // Modulus
-// const int n = 6; // Dimension of s
-// const int m = 8; // Number of samples in PK
-// const int t = 2; // t = p (assumindo t = q / 65536)
-// const int w = 2; // Number of samples in encryption
-// const int b = 7; // Range of coefficients in ai
+
 
 const int q = 429496729;  // Exemplo de valor para q
 const int n = 13;
