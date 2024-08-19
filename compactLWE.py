@@ -1,116 +1,87 @@
-import random
-from math import gcd
+import numpy as np
+from sympy import mod_inverse, gcd
+from scipy.linalg import lu, inv
+import time
 
-# Variáveis globais fixas
-q = 4294967296
-n = 13
+# Parâmetros Compact-LWE
+q = 2**32
+t = 2**16
 m = 74
-t = 65536
 w = 86
+n = 13
 b = 16
 
-# Função para encontrar o inverso modular
-def modinv(a, mod):
-    t, new_t = 0, 1
-    r, new_r = mod, a
-    while new_r != 0:
-        quotient = r // new_r
-        t, new_t = new_t, t - quotient * new_t
-        r, new_r = new_r, r - quotient * new_r
-    if r > 1:
-        raise ValueError("a is not invertible")
-    if t < 0:
-        t = t + mod
-    return t
+# Função para gerar chaves (keygen)
+def keygen():
+    s = np.random.randint(0, q, n)  # Vetor s em Z_q^n
+    r = np.random.randint(2, int(np.ceil(q / w / t)) - 1)  # r em um intervalo determinado
+    assert r > b
+    # Gerando p que seja coprimo com q
+    p = 0
+    while gcd(p, q) > 1:
+        p = np.random.randint(t, int(np.ceil(q / r / w)) - 1)
 
-# Função Gen
-def Gen():
-    # Gerar s, vetor n-dimensional com coordenadas mod q
-    s = [random.randint(0, q-1) for _ in range(n)]
-    
-    # Encontrar sk, r e p que satisfazem as condições
-    while True:
-        sk = random.randint(1, q-1)
-        r = random.randint(b + 1, q-1)
-        p = random.randint(t, q-1)
-        
-        # Verificar se sk, p e q são coprimos
-        if gcd(sk, p) == 1 and gcd(sk, q) == 1 and gcd(p, q) == 1:
-            # Verificar a condição sk * (t - 1) + w * r * p < q
-            if sk * (t - 1) + w * r * p < q:
-                break
-    
-    # Calcular sk^-1?q que satisfaz a condição sk * sk^-1?q = -1 mod q
-    sk_inv_q = modinv(sk, q)
-    sk_inv_q = (-sk_inv_q) % q
-    
-    # Calcular k
-    k = (sk_inv_q * p) % q
-    
-    K = (s, sk, r, p)
-    
-    # Gerar ai e calcular pki
-    ai = [[random.randint(0, b-1) for _ in range(n)] for _ in range(m)]
-    PK = []
-    for a in ai:
-        ei = random.randint(0, r-1)
-        inner_product = sum(a[i] * s[i] for i in range(n)) % q
-        pki = (inner_product + ei * k) % q
-        PK.append((a, pki))
-    
-    return K, PK
+    # Gerando sk que seja coprimo com q e p
+    sk = 0
+    while gcd(sk, q) > 1 or gcd(sk, p) > 1:
+        sk = np.random.randint(1, int(np.ceil((q - w * r * p) / (t - 1))) - 1)
+    assert sk < p
+    # assert sk*(t-1) < p
+    return s, r, p, sk
 
-# Função Enc
-def Enc(PK, v):
-    # Escolha um número inteiro i uniformemente de {1, ..., m}
-    i = random.randint(0, m-1)
-    c_prime = PK[i]
-    
-    # Amostrar w inteiros uniformemente de {1, ..., m}
+# Função para gerar amostras Compact-LWE (samplegen)
+def samplegen(s, r, p, sk):
+    A = np.random.randint(0, b, (m, n))  # Matriz A em Z_b^(m x n)
+    k = (mod_inverse(p, q) * (-1) * sk) % q
+    e = np.random.randint(0, r, m)  # Vetor de erros em Z_r^m
+
+    # v = A*s + k*e
+    v = (np.dot(A, s) + k * e) % q
+    return A, v, e
+
+# Função para criptografar (encrypt)
+def encrypt(A, v, mu):
+    a = np.random.randint(0, q, n)  # Vetor a
+    x = mu
     for _ in range(w):
-        j = random.randint(0, m-1)
-        a_prime = [(c_prime[0][k] + PK[j][0][k]) % q for k in range(n)]
-        pk_prime = (c_prime[1] + PK[j][1]) % q
-        c_prime = (a_prime, pk_prime)
-    
-    # Suponha que c' = (a, pk) e gere c = (a, v - pk mod q)
-    a, pk = c_prime
-    c = (a, (v - pk) % q)
-    
-    return c
+        j = np.random.randint(0, m)
+        a = (a + A[j]) % q
+        x = (x - v[j]) % q
 
-# Função Dec
-def Dec(K, c):
-    (s, sk, r, p) = K
-    (a, d) = c
+    return a, x
+
+def Dec(s, sk, p, a, d):
+    # Passo 1: Calcular c' = ⟨a, s⟩ + d mod q
+    c_prime = (np.dot(a, s) + d) % q
     
-    # Calcular c' = produtoInterno(a, s) + d mod q
-    inner_product = sum(a[i] * s[i] for i in range(n)) % q
-    c_prime = (inner_product + d) % q
-    
-    # Calcular skv = sk * c' mod q
+    # Passo 2: Calcular skv = sk × c' mod q
     skv = (sk * c_prime) % q
     
-    # Calcular sk^-1?p
-    sk_inv_p = modinv(sk, p)
+    # Passo 3: Calcular v = sk_p^{-1} × skv mod p
+    sk_p_inverse = mod_inverse(sk, p)
+    v = (sk_p_inverse * skv) % p
     
-    # Calcular v = sk^-1?p * skv mod p
-    v = (sk_inv_p * skv) % p
+    # Verificação e ajustes para garantir a recuperação correta de mu
+    if v < 0:
+        v += p
     
     return v
 
-# Executar a função Gen para obter K e PK
-K, PK = Gen()
-print("K:", K)
-print("PK:")
-for pk in PK:
-    print(pk)
 
-# Testar a função Enc e Dec
-v = 1  # Valor a ser encriptado
-c = Enc(PK, v)
-print("Valor encriptado (c):", c)
+# Exemplo de uso
+if __name__ == "__main__":
+    # Geração de chaves
+    s, r, p, sk = keygen()
 
-# Descriptografar o valor
-v_recuperado = Dec(K, c)
-print("Valor recuperado (v):", v_recuperado)
+    # Geração de amostras Compact-LWE
+    A, v, e = samplegen(s, r, p, sk)
+
+    # Mensagem a ser criptografada
+    mu = 1
+
+    # Criptografia da mensagem
+    a, x = encrypt(A, v, mu)
+
+    v_dec = Dec(s, sk, p, a, x)
+    print(f"Texto cifrado: {(a, x)}")
+    print(f"Texto decifrado: {v_dec}")

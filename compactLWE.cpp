@@ -97,7 +97,7 @@ int innerProduct(const vector<int>& a, const vector<int>& b) {
 int calculateSkInvQ(int sk) {
     int sk_inv_q = modInverse(sk, q);
 
-    sk_inv_q = (-sk_inv_q) % q;
+    sk_inv_q = (sk_inv_q * (q - 1)) % q;
     if (sk_inv_q < 0)
         sk_inv_q += q;
 
@@ -119,7 +119,7 @@ pair<PrivateKey, PublicKeys> GenerateKeys() {
         privateKey.p = rand() % (q - 1) + 1;  // Gera p entre 1 e q-1
     } while (!areCoprime(privateKey.sk, privateKey.p, q) || 
              !areCoprime(privateKey.r, privateKey.p, q) || 
-             (privateKey.sk * (privateKey.p - 1) + w * privateKey.r * privateKey.p >= q) || 
+             (privateKey.sk * (t - 1) + w * privateKey.r * privateKey.p < q) || 
              (b >= privateKey.r));
 
     for (int i = 0; i < n; i++) {
