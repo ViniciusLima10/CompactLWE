@@ -1,221 +1,167 @@
 #include <iostream>
 #include <vector>
-#include <cstdlib> // Para a função rand()
-#include <ctime>   // Para a função time()
-#include <numeric> // Para std::gcd
-#include <utility>
+#include <cstdlib>
+#include <cmath>
+#include <ctime>
+#include <tuple>
 
 using namespace std;
 
-
-
-const int q = 429496729;  // Exemplo de valor para q
-const int n = 13;
-const int m = 74;
-const int t = 65536;
-const int w = 86;
-const int b = 16;
-
-
-// Estrutura para armazenar K e PK
-struct PrivateKey {
-    vector<int> s; //
-    int sk;
-    int r;
-    int p;
-};
-
-struct PublicKey {
-    vector<int> ai;
-    int pki;
-};
-
-struct PublicKeys {
-    vector<PublicKey> publicKey;
-};
-
-// Função para encontrar inverso modular
-int modInverse(int a, int m) {
-    int m0 = m, t, q;
-    int x0 = 0, x1 = 1;
-
-    if (m == 1)
-        return 0;
-
+// Função para calcular o inverso modular usando o Algoritmo Estendido de Euclides
+int modular_inverse(int a, int m) {
+    int m0 = m, x0 = 0, x1 = 1;
+    if (m == 1) return 0;
     while (a > 1) {
-        q = a / m;
-        t = m;
-
+        int q = a / m;
+        int t = m;
         m = a % m;
         a = t;
         t = x0;
-
         x0 = x1 - q * x0;
         x1 = t;
     }
-
-    if (x1 < 0)
-        x1 += m0;
-
+    if (x1 < 0) x1 += m0;
     return x1;
 }
 
-// Função para gerar um vetor n-dimensional com coordenadas mod q
-vector<int> generateVector(int n, int q) {
-    vector<int> vec(n);
-    for (int i = 0; i < n; ++i) {
-        vec[i] = rand() % q; // Atribui um valor aleatório mod q a cada elemento do vetor
-    }
-    return vec;
-}
-
+// Função gcd (Máximo Divisor Comum)
 int gcd(int a, int b) {
-    if (b == 0) return a;
-    else return gcd(b, a % b);
-}
-
-// Função para verificar se três números são coprimos (mútua coprimos)
-bool areCoprime(int a, int b, int c) {
-    return gcd(a, b) == 1 && gcd(a, c) == 1 && gcd(b, c) == 1;
-}
-
-// Função para gerar um valor aleatório ei uniformemente amostrável em anéis de inteiros modulo r
-int generateEi(int r) {
-    return rand() % r;
-}
-
-// Função para calcular o produto interno entre dois vetores
-int innerProduct(const vector<int>& a, const vector<int>& b) {
-    int result = 0;
-    for (size_t i = 0; i < a.size(); ++i) {
-        result += a[i] * b[i];
+    while (b != 0) {
+        int temp = b;
+        b = a % b;
+        a = temp;
     }
-    return result;
+    return a;
 }
 
-// Função para calcular sk^-1*q que satisfaz a condição sk * sk^-1*q = -1 mod q
-int calculateSkInvQ(int sk) {
-    int sk_inv_q = modInverse(sk, q);
-
-    sk_inv_q = (sk_inv_q * (q - 1)) % q;
-    if (sk_inv_q < 0)
-        sk_inv_q += q;
-
-    return sk_inv_q;
-}
-
-// Função para gerar as chaves (Keys) que satisfazem as condições
-pair<PrivateKey, PublicKeys> GenerateKeys() {
-    PrivateKey privateKey;
-    PublicKeys publicKeys;
-
-    cout << "Gerando Chave Privada: " << endl << "(";
-
-    privateKey.s = generateVector(n, q); // Gera o vetor s
-
-    do {
-        privateKey.sk = rand() % (q - 1) + 1; // Gera sk entre 1 e q-1
-        privateKey.r = rand() % (q - 1) + 1;  // Gera r entre 1 e q-1
-        privateKey.p = rand() % (q - 1) + 1;  // Gera p entre 1 e q-1
-    } while (!areCoprime(privateKey.sk, privateKey.p, q) || 
-             !areCoprime(privateKey.r, privateKey.p, q) || 
-             (privateKey.sk * (t - 1) + w * privateKey.r * privateKey.p < q) || 
-             (b >= privateKey.r));
-
+// Função de soma de vetores com módulo q
+vector<int> vecsum(const vector<int>& a, const vector<int>& b, int q) {
+    int n = a.size();
+    vector<int> c(n);
     for (int i = 0; i < n; i++) {
-        cout << privateKey.s[i] << ", ";
+        c[i] = (a[i] + b[i]) % q;
     }
-    cout << privateKey.sk << ", " << privateKey.r << ", " << privateKey.p << ")" << endl;
-
-    publicKeys.publicKey.resize(m);
-
-    int k = calculateSkInvQ(privateKey.sk);
-
-    cout << "Gerando Chaves Publicas..." << endl;
-    for (int i = 0; i < m; i++) {
-        publicKeys.publicKey[i].ai = generateVector(n, b);
-
-        int ei = generateEi(privateKey.r); // gera um erro uniformemente amostrável em mod r
-        int inner_product = innerProduct(publicKeys.publicKey[i].ai, privateKey.s);
-
-        publicKeys.publicKey[i].pki = (inner_product + ei * k) % q;
-    }
-
-    return make_pair(privateKey, publicKeys); // como faco essa linha??
-}
-
-// Function to encrypt the message v
-vector<int> Enc(PublicKeys PK, int v) {
-    vector<int> c(n + 1); // Initialize the ciphertext vector
-
-    // Sample an integer i uniformly from the set {1, ..., m}
-    int i = rand() % m + 1;
-
-    // Get the corresponding sample from PK
-    PublicKey sample = PK.publicKey[i - 1]; // Adjust for 0-based indexing
-
-    // Initialize c' with the sample
-    vector<int> c_prime = sample.ai;
-    int pk_prime = sample.pki;
-
-    // Sample w integers uniformly from the set {1, ..., m}
-    for (int j = 0; j < w; j++) {
-        int k = rand() % m + 1;
-        PublicKey sample_k = PK.publicKey[k - 1]; // Adjust for 0-based indexing
-
-        // Update c' by adding the sample
-        for (int l = 0; l < n; l++) {
-            c_prime[l] = (c_prime[l] + sample_k.ai[l]) % q;
-        }
-        pk_prime = (pk_prime + sample_k.pki) % q;
-    }
-
-    // Compute c = (a, v - pk mod q)
-    for (int l = 0; l < n; l++) {
-        c[l] = c_prime[l];
-    }
-    c[n] = (v - pk_prime) % q;
-
     return c;
 }
 
-int Dec(PrivateKey K, vector<int> c) {
-    int c_prime = innerProduct(K.s, vector<int>(c.begin(), c.begin() + n)); // calcula c' = produtoInterno(a, s) mod q
-    int skv = (c_prime * K.sk) % q; // calcula skv = sk * c' mod q
-    int v = (calculateSkInvQ(K.sk) * skv) % K.p; // calcula v = sk^-1*p * skv mod p
+// Função de produto escalar com módulo q
+int dot(const vector<int>& a, const vector<int>& b, int q) {
+    int s = 0;
+    for (int i = 0; i < a.size(); i++) {
+        s = (s + a[i] * b[i]) % q;
+    }
+    return s;
+}
+
+// Gera um vetor aleatório de tamanho n com elementos no intervalo [0, q-1]
+vector<int> genVector(int n, int q) {
+    vector<int> v(n);
+    for (int i = 0; i < n; i++) {
+        v[i] = rand() % q;
+    }
     return v;
 }
 
+// Função para gerar as chaves secretas com as condições matemáticas especificadas
+tuple<vector<int>, int, int, int> skGen(int q, int n, int m, int t, int w, int b) {
+    vector<int> s;
+    int sk, r, p;
+    while (true) {
+        s = genVector(n, q);
+        
+        // Gera r com verificação para garantir que não seja zero
+        do {
+            r = rand() % (2 * b) + b + 1;
+        } while (r == 0);
+        cout << "Valor de r gerado: " << r << endl;
+
+        // Gera sk e garante que gcd(sk, q) seja 1 e sk != 0
+        do {
+            sk = rand() % (q / (2 * (t - 1)) - 1) + 2;
+        } while (gcd(sk, q) != 1 || sk == 0);
+        cout << "Valor de sk gerado: " << sk << endl;
+        
+        // Gera p e verifica que gcd(p, sk) == 1 e gcd(p, q) == 1 e p != 0
+        do {
+            p = rand() % (q / (2 * w * r) - 1 + t) + t;
+        } while ((gcd(p, sk) != 1 || gcd(p, q) != 1 || p == 0));
+        cout << "Valor de p gerado: " << p << endl;
+
+        if (t <= p && gcd(p, q) == 1 && gcd(p, sk) == 1 && gcd(q, sk) == 1 &&
+            sk * (t - 1) + w * r * p < q && b < r && r < q && sk < q && p < q) {
+            cout << "Condições válidas para s, sk, r, p.\n";
+            break;
+        }
+    }
+    return make_tuple(s, sk, r, p);
+}
+
+// Função para gerar a chave pública com base na chave secreta
+vector<pair<vector<int>, int>> pkGen(int sk, int p, int q, const vector<int>& s, int b, int m, int n, int r) {
+    vector<pair<vector<int>, int>> PK;
+    for (int i = 0; i < m; i++) {
+        vector<int> a = genVector(n, b);
+        int e = rand() % (r - 1) + 1;
+        int skq = modular_inverse(sk, q);
+        cout << "Inverso modular skq: " << skq << endl;
+        int pk = (dot(a, s, q) + e * skq * p) % q;
+        PK.push_back(make_pair(a, pk));
+    }
+    return PK;
+}
+
+// Função de encriptação
+pair<vector<int>, int> encrypt(int v, const vector<pair<vector<int>, int>>& PK, int p, int q, int m, int n, int w) {
+    vector<int> C0(n, 0);
+    int C1 = 0;
+    for (int j = 0; j < w; j++) {
+        int i = rand() % m;
+        C0 = vecsum(C0, PK[i].first, q);
+        C1 = (C1 + PK[i].second) % q;
+    }
+    C1 = (v - C1) % q;
+    return make_pair(C0, C1);
+}
+
+// Função de descriptografia
+int decrypt(const pair<vector<int>, int>& C, const vector<int>& s, int sk, int r, int p, int q) {
+    const vector<int>& a = C.first;
+    int d = C.second;
+    int cp = (dot(a, s, q) + d) % q;
+    int skv = (sk * cp) % q;
+    int skp = modular_inverse(sk, p);
+    cout << "Valor de skp (inverso modular): " << skp << endl;
+    return (skp * skv) % p;
+}
+
+// Função de teste
+void test(int v) {
+    long long q = (1LL << 32);  // Utilizando long long para representar 2^32
+    int t = 1 << 16;
+    int m = 74;
+    int w = 86;
+    int n = 13;
+    int b = 16;
+
+    vector<int> s;
+    int sk, r, p;
+    tie(s, sk, r, p) = skGen(q, n, m, t, w, b);  // Atribuindo valores de retorno da tupla
+    auto PK = pkGen(sk, p, q, s, b, m, n, r);
+    auto C = encrypt(v, PK, p, q, m, n, w);
+    int D = decrypt(C, s, sk, r, p, q);
+
+    if (D != v) {
+        cout << "Erro na decodificação!" << endl;
+    } else {
+        cout << "Sucesso na decodificação!" << endl;
+    }
+}
 
 int main() {
-    srand(time(NULL)); // Inicializa a semente aleatória uma vez
-
-    auto keys = GenerateKeys(); // Call the GenerateKeys function
-
-    PrivateKey privateKey = keys.first;
-    PublicKeys publicKeys = keys.second;
-
-    for (int i = 0; i < m; i++) {
-        cout << "Chave Publica " << i << ": (";
-        for (int j = 0; j < n; j++) {
-            cout << publicKeys.publicKey[i].ai[j] << ", ";
-        }
-        cout << publicKeys.publicKey[i].pki << ")" << endl;
+    srand(time(0));  // Seed para números aleatórios
+    for (int i = 0; i < 10; i++) {  // Teste com 10 iterações
+        int v = rand() % ((1 << 16) - 1);
+        test(v);
     }
-
-    int v = 1;
-    cout << "texto plano: " << v << endl;
-    vector<int> cypherText = Enc(publicKeys, v);
-    cout << "texto cifrado: " << endl;
-    for(int i = 0; i < n + 1; i++) {
-        cout << cypherText[i] << ", ";
-    }
-
-    cout << "Tentativa de decriptacao..." << endl;
-
-    int v_decifrado = Dec(privateKey, cypherText);
-
-    cout<< "texto decifrado: " << v_decifrado << endl;
-
     return 0;
 }

@@ -22,3 +22,7 @@ b = 16
 }
 
 obs: com os parametros do artigo meu codigo ainda nao esta rodando
+
+
+compilacao no  esp 32
+ # ampy --port /dev/ttyUSB0 put CompactLWEmicro.py
