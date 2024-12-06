@@ -38,14 +38,7 @@ def dot(a, b, q):
 def genVector(n, q):
     return [urandom.getrandbits(8) % q for _ in range(n)]
 
-# Função para gerar parâmetros públicos
-def ppGen(q, n, t, w):
-    m = urandom.getrandbits(8) % (n**2 - 1 - n) + n + 2
-    b = urandom.getrandbits(8) % (2**(n // 2) - 1 - n) + n + 1
-    assert (2 * log(b * b, 2) + 2) * b < q
-    return q, n, m, t, w, b
-
-# Geração da chave secreta com validações
+# Função para geração da chave secreta com validações
 def skGen(q, n, m, t, w, b):
     while True:
         s = genVector(n, q)
@@ -99,26 +92,54 @@ def decrypt(C, s, sk, r, p, q):
     dec = (skp * skv) % p
     return dec
 
-# Função de teste para verificar criptografia e descriptografia
-def test(v):
-    q = 2**32
-    t = 2**16
-    m = 74
-    w = 86
-    n = 13
-    b = 16
+# Loop infinito para ajustar os parâmetros e testar o limite do dispositivo
+def find_max_parameters():
+    # Parâmetros iniciais
+    q = 2**12  # Início com valor mais baixo para evitar overflow
+    n = 4
+    m = n + 2
+    t = 2**8
+    w = 10  # Parâmetro menor para minimizar uso de memória
+    b = n + 1
 
-    s, sk, r, p = skGen(q, n, m, t, w, b)
-    PK = pkGen(sk, p, q, s, b, m, n, r)
-    C = encrypt(v, PK, p, q, m, n, w)
-    D = decrypt(C, s, sk, r, p, q)
+    while True:
+        # Garante que m e b estão no intervalo exigido
+        m = min(m, n**2 - 1)
+        b = min(b, q - 1)
 
-    if D != v:
-        print("Erro na decodificação!")
-    else:
-        print("Sucesso na decodificação!")
+        # Verifica a condição (2 * log(b) * b + 2) * b < q
+        if (2 * log(b, 2) * b + 2) * b < q and 2 * log(b, 2) < n:
+            # Executa o teste com os parâmetros atuais
+            v = urandom.getrandbits(8) % (t - 1)
+            try:
+                s, sk, r, p = skGen(q, n, m, t, w, b)
+                PK = pkGen(sk, p, q, s, b, m, n, r)
+                C = encrypt(v, PK, p, q, m, n, w)
+                D = decrypt(C, s, sk, r, p, q)
 
-# Executa o teste para múltiplos valores
-for i in range(10):  # Reduzido para 10 testes para evitar demora
-    v = urandom.getrandbits(16)
-    test(v)
+                # Imprime os parâmetros atuais
+                print("Parâmetros atuais:")
+                print(f"q = {q}, n = {n}, m = {m}, t = {t}, w = {w}, b = {b}")
+
+                # Verifica se a decodificação foi bem-sucedida
+                if D == v:
+                    print("Sucesso na decodificação! Aumentando parâmetros...\n")
+                    # Aumenta os parâmetros para o próximo teste
+                    q = min(q * 2, 2**18)  # Limite para evitar estouro de memória
+                    n = min(n + 1, 32)     # Limite máximo de n para minimizar o uso de memória
+                    m = n + 2
+                    b = n + 1
+                else:
+                    print("Falha na decodificação. Mantendo parâmetros.")
+            except Exception as e:
+                print("Erro na execução:", e)
+                break  # Encerra o loop em caso de erro
+        else:
+            print("Condições para parâmetros não atendidas. Ajustando...")
+            n = min(n + 1, 32)
+            m = n + 2
+            b = n + 1
+            q = min(q * 2, 2**18)
+
+# Inicia a busca pelos maiores parâmetros
+find_max_parameters()
